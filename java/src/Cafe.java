@@ -24,8 +24,6 @@ import java.io.InputStreamReader;
 import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.sql.Timestamp;  
 
 
@@ -75,6 +73,17 @@ public class Cafe {
          System.exit(-1);
       }//end catch
    }//end Cafe
+
+   private void updateOrderPrice(Cafe esql, String orderid){
+      try{  
+         List<List<String>> result = esql.executeQueryAndReturnResult(String.format("SELECT SUM(price) FROM ItemStatus I, Menu M WHERE I.orderid = %s AND I.itemName = M.itemName", orderid));
+         if(result.isEmpty()){ return; }
+         String new_price = result.get(0).get(0);
+         esql.executeUpdate(String.format("UPDATE Orders SET total = %s", new_price));
+      }catch(Exception e){ 
+         System.err.println(e.getMessage());
+      }
+   }
 
    /**
     * Method to execute an update SQL statement.  Update SQL instructions
@@ -378,9 +387,9 @@ public class Cafe {
          String password = in.readLine();
 
          String query = String.format("SELECT * FROM USERS WHERE login = '%s' AND password = '%s'", login, password);
-         int userNum = esql.executeQuery(query);
-	 if (userNum > 0)
-		return login;
+         int num = esql.executeQuery(query);
+      if (num > 0)
+         return login;
          return null;
       }catch(Exception e){
          System.err.println (e.getMessage ());
@@ -487,8 +496,10 @@ public class Cafe {
    }
   }
 
-  public static void UpdateProfile(Cafe esql) throws IOException {
-     System.out.print("\n(1) to update login \n(2) to update phone \n(3) to update password\n\n");
+  public static void UpdateProfile(Cafe esql) throws IOException, SQLException{
+     List<List<String>> result = esql.executeQueryAndReturnResult(String.format("SELECT type FROM USERS WHERE login = '%s'", esql.getAuthorisedUser()));
+     boolean isManager = result.get(0).get(0).contains("Manager") ? true : false;
+     System.out.print("\n(1) to update login \n(2) to update phone \n(3) to update password\n(4) to update Type\n(5) Main Menu\n");
      int user_choice = esql.readChoice();
      String new_entry = "";
      String query = "UPDATE users SET ";
@@ -524,6 +535,20 @@ public class Cafe {
             catch(Exception e){System.out.println(e);}
             
         break;
+        case 4:
+            if(!isManager){
+               System.out.println("ONLY MANAGER CAN CHANGE USER TYPE");
+               break;
+            }
+            System.out.print("Enter the user login: ");
+            String login = in.readLine();
+            System.out.print("Enter the new type: ");
+            String newType = in.readLine();
+            esql.executeUpdate("UPDATE Users SET type = '" + newType + "' WHERE login = '" + login + "'");
+            System.out.println(String.format("User %s is now of type %s", login, newType));
+        break;
+        case 5:
+         break;
             
         default:
              System.out.println(String.valueOf(user_choice) + " is not an option.");
@@ -544,7 +569,7 @@ public class Cafe {
       Double total = 0.0;
       String itemname = "";
       while(user_choice == 1 || user_choice == 2){
-         System.out.print("\n(1) to enter itemName \n(2) to enter item type \n(3) to check out \n(4) to quit: ");
+         System.out.print("\n(1) to enter itemName \n(2) to enter item type \n(3) to check out \n(4) to quit\nEnter your choice: ");
          user_choice = Integer.parseInt(in.readLine());
          switch(user_choice){
             case 1:
@@ -564,7 +589,6 @@ public class Cafe {
                   case "y":
                      result = esql.executeQueryAndReturnResult(query);
                      itemname = result.get(0).get(0);
-                     itemname = itemname.replaceAll("\\s+","");
                      total += Double.parseDouble(result.get(0).get(2));
                      orders.add(itemname);
                      System.out.println(itemname + " added. Total: " + total);
@@ -610,7 +634,7 @@ public class Cafe {
             break;
 
             case 3:
-               int order_id = esql.executeQuery("SELECT * FROM ORDERS") + 10;
+               String order_id = esql.executeQueryAndReturnResult("SELECT nextval('orders_orderid_seq')").get(0).get(0);
                String user_login = esql.getAuthorisedUser();
                Timestamp timestamp = new Timestamp(System.currentTimeMillis());
                
@@ -634,7 +658,7 @@ public class Cafe {
                System.out.println("\nTotal: " + total + "\n");
                System.out.println("Order submitted, order id = " + order_id + ".");
                System.out.println("------------------------------------------\n");
-
+               total = 0.0;
 
 
             case 4:
@@ -649,12 +673,26 @@ public class Cafe {
       }
 
   }
-      
+
   public static void UpdateOrder(Cafe esql) throws IOException, SQLException{
-      String query = String.format("SELECT * FROM Orders WHERE login = '%s' AND paid = false", esql.getAuthorisedUser());
+      List<List<String>> userType = esql.executeQueryAndReturnResult(String.format("SELECT type FROM USERS WHERE login = '%s'", esql.getAuthorisedUser()));
+      boolean isCustomer = userType.get(0).get(0).contains("Customer") ? true : false;
+      Timestamp today = new Timestamp(System.currentTimeMillis()); // Today's time stamp
+      String query;
+      if(isCustomer){
+         query = String.format("SELECT * FROM Orders WHERE login = '%s' AND paid = false", esql.getAuthorisedUser());
+      } else {
+         query = String.format("SELECT * FROM Orders O WHERE O.paid = false AND EXTRACT(EPOCH FROM ('%s' - O.timeStampRecieved)) < 86400" , today); // comparing seconds in one day
+         System.out.println(query);
+      }
+
       List<List<String>> Oresult = esql.executeQueryAndReturnResult(query);
 
-      System.out.println("This are your orders: ");
+      if(isCustomer){
+         System.out.println("This are your orders: ");
+      }{
+         System.out.println("This are the active orders: ");
+      }
       for(int i = 0; i < Oresult.size(); i++){
          System.out.println(String.format("%s\t%s\t%s\t%s\t%s",Oresult.get(i).get(0),
                                                                Oresult.get(i).get(1),
@@ -662,7 +700,11 @@ public class Cafe {
                                                                Oresult.get(i).get(3),
                                                                Oresult.get(i).get(4)));
                                                             }
-      System.out.println("You have " + Oresult.size() + " order(s)");
+      if(isCustomer){
+         System.out.println("You have " + Oresult.size() + " order(s)");
+      } else {
+         System.out.println("There are " + Oresult.size() + " order(s)");
+      }
       if(Oresult.isEmpty()){ return; }
 
       System.out.print("Enter order number to change: ");
@@ -673,7 +715,7 @@ public class Cafe {
 
 
       while(true){
-         List<List<String>> Iresult = esql.executeQueryAndReturnResult(String.format("SELECT * FROM ItemStatus WHERE orderid = %s", oid));
+         List<List<String>> Iresult = esql.executeQueryAndReturnResult(String.format("SELECT I.orderid, M.itemName, M.description, M.price FROM ItemStatus I, Menu M WHERE I.orderid = %s AND I.itemName = M.itemName", oid));
          if(Iresult.isEmpty()){
             esql.executeUpdate(String.format("DELETE FROM Orders WHERE orderid = %s", oid));
             System.out.println("No Order with id: " + oid);
@@ -688,24 +730,50 @@ public class Cafe {
             }
             System.out.println();
          }
+         System.out.println("Total ................. " + esql.executeQueryAndReturnResult("SELECT total FROM Orders WHERE orderid = " + oid).get(0).get(0));
 
-         System.out.print("[Empty to return]\nEnter the item to delete: ");
+         if(isCustomer){
+            System.out.print("[Empty to return]\nEnter the item to delete: ");
+         } else {
+            System.out.print("[Empty to return]\n1. Delete item\n2. Change order to paid\nEnter your selection: ");
+         }
          String input = in.readLine();
          if(input.isEmpty()){ break; }
 
          int selection = Integer.parseInt(input);
 
-         String orderid = Iresult.get(selection - 1).get(0);
-         String itemname = Iresult.get(selection - 1).get(1);
+         if(isCustomer){
+            String orderid = Iresult.get(selection - 1).get(0);
+            String itemname = Iresult.get(selection - 1).get(1);
 
-         esql.executeUpdate(String.format("DELETE FROM ItemStatus WHERE orderid = %s AND itemName = '%s'", orderid, itemname));
-         System.out.println("Deleted item: " + itemname);
+            esql.executeUpdate(String.format("DELETE FROM ItemStatus WHERE orderid = %s AND itemName = '%s'", orderid, itemname));
+            System.out.println("Deleted item: " + itemname);
+            esql.updateOrderPrice(esql, orderid);
+         } else {
+            if(selection == 1){
+               System.out.print("[Empty to return]\nEnter the item to delete: ");
+               input = in.readLine();
+               if(input.isEmpty()){ break; }
+
+               selection = Integer.parseInt(input);
+               String orderid = Iresult.get(selection - 1).get(0);
+               String itemname = Iresult.get(selection - 1).get(1);
+
+               esql.executeUpdate(String.format("DELETE FROM ItemStatus WHERE orderid = %s AND itemName = '%s'", orderid, itemname));
+               System.out.println("Deleted item: " + itemname);
+               esql.updateOrderPrice(esql, orderid);
+
+            } else if (selection == 2){
+               esql.executeUpdate(String.format("UPDATE Orders SET paid = true WHERE orderid = %s", oid));
+               System.out.println("Order " + oid + " has been paid.");
+            }
+         }
       }
   }
 
   public static void OrderHistory(Cafe esql) throws SQLException{
      String login = esql.getAuthorisedUser();
-     String query = "SELECT * FROM ORDERS WHERE login = '" + login + "' GROUP BY orderid, timeStampRecieved LIMIT 5";
+     String query = "SELECT * FROM ORDERS WHERE login = '" + login + "' ORDER BY orderid, timeStampRecieved LIMIT 5";
 
      System.out.println("\n\nOrder History: \n");
      esql.executeQueryAndPrintResult(query);
