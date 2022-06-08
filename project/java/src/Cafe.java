@@ -90,6 +90,14 @@ public class Cafe {
       stmt.close ();
    }//end executeUpdate
 
+   private String nCharacterString(int n, char c){
+      String s = "";
+      for(int i = 0; i < n; i++){
+         s += c;
+      }
+      return s;
+   }
+
    /**
     * Method to execute an input query SQL instruction (i.e. SELECT).  This
     * method issues the query to the DBMS and outputs the results to
@@ -116,11 +124,12 @@ public class Cafe {
 
       // iterates through the result set and output them to standard out.
       boolean outputHeader = true;
-
+      int width = 0;
       while (rs.next()){
 		 if(outputHeader){
 			for(int i = 1; i <= numCol; i++){
-			System.out.print(rsmd.getColumnName(i) + "\t");
+         width += rsmd.getColumnDisplaySize(i);
+			System.out.print(rsmd.getColumnName(i) + nCharacterString(rsmd.getColumnDisplaySize(i)-8, ' '));
 			}
 			System.out.println();
 			outputHeader = false;
@@ -392,39 +401,89 @@ public class Cafe {
          System.out.println("User does not exist");
          return;
       }
-      boolean isManager = result.get(0).get(0) == "Manager" ? true : false;
+      boolean isManager = result.get(0).get(0).contains("Manager") ? true : false;
       String[] options = {"1. Search item by name", "2. Search items by type", "3. Add item", "4. Delete item"};
       int optionsToShow = isManager ? 4 : 2;
 
+      boolean done = false;
 
-      esql.executeQueryAndPrintResult("SELECT itemName, type, description, price FROM Menu");
-      for(int i = 0; i < optionsToShow; i++){
-         System.out.println(options[i]);
-      }
-      System.out.println(String.format("%d. Main Menu", optionsToShow + 1));
+      while(!done){
+         esql.executeQueryAndPrintResult("SELECT itemName, type, description, price FROM Menu");
+         for(int i = 0; i < optionsToShow; i++){
+            System.out.println(options[i]);
+         }
+         System.out.println(String.format("%d. Main Menu", optionsToShow + 1));
 
-      System.out.print("Enter your selection: ");
-      int selection = Integer.parseInt(in.readLine());
+         System.out.print("Enter your selection: ");
+         int selection = 0;
+         try{
+            selection = Integer.parseInt(in.readLine());
+         }catch(Exception e){
+            selection = 0;
+         }
 
-      int queryCount = 0;
-      switch(selection){
-         case 1:
-            System.out.print("Enter the item name: ");
-            String name = in.readLine();
-            queryCount = esql.executeQueryAndPrintResult(String.format("SELECT itemName, type, description, price FROM Menu WHERE itemName = '%s'", name));
-            break;
-         case 2:
-            break;
-         case 3:
-            if(!isManager){ break; }
-            break;
-         case 4:
-            break;
-         case 5:
+         String input = "";
+         int queryCount = 0;
+         switch(selection){
+            case 1:
+               while(true){
+                  System.out.print("[Empty to return]\nEnter the item name: ");
+                  input = in.readLine();
+                  if(input.isEmpty()){ break; }
+                  queryCount = esql.executeQueryAndPrintResult(String.format("SELECT itemName, type, description, price FROM Menu WHERE itemName = '%s'", input));
+               }
+               break;
+            case 2:
+               while(true){
+                  System.out.print("[Empty to return]\nEnter the item type: ");
+                  input = in.readLine();
+                  if(input.isEmpty()){ break; }
+                  queryCount = esql.executeQueryAndPrintResult(String.format("SELECT itemName, type, description, price FROM Menu WHERE type = '%s'", input));
+               }
+               break;
+            case 3:
+               if(!isManager){ done = true; break;}
 
-         default:
-            break;
-         
+               String query = "";
+               while(true){
+                  query = "INSERT INTO Menu (itemName, type, price, description, imageURL) VALUES(";
+                  System.out.print("Enter item name: ");
+                  query += String.format("'%s', ",in.readLine());
+                  System.out.print("\nEnter item type: ");
+                  query += String.format("'%s', ",in.readLine());
+                  System.out.print("\nEnter item price: ");
+                  query += String.format("%s, ",in.readLine());
+                  System.out.print("\nEnter item description: ");
+                  query += String.format("'%s', ",in.readLine());
+                  System.out.print("\nEnter item's image URL: ");
+                  query += String.format("'%s')",in.readLine());
+
+
+                  esql.executeUpdate(query);
+
+                  System.out.print("Add another item [y/n]: ");
+                  input = in.readLine();
+                  if(input.contains("n") || input.contains("N")){ break; }
+               }
+               break;
+            case 4:
+               if(isManager){
+                  System.out.print("[Empty to return]\nEnter the item name: ");
+                  input = in.readLine();
+                  if(input.isEmpty()){ break; }
+
+                  esql.executeUpdate(String.format("DELETE FROM Menu WHERE itemName = '%s'", input));
+               }
+            case 5:  
+               if(isManager){
+                  done = true;
+                  break;
+               }
+            default:
+               System.out.println("Invalid Choice");
+               break;
+            
+         }
       }
 
    }catch(Exception e){
