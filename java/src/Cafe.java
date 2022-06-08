@@ -590,7 +590,11 @@ public class Cafe {
                result = esql.executeQueryAndReturnResult(query);
 
                for(int i = 0; i < result.size(); i++){
-                  System.out.print((i+1) + ") " + result.get(i)); 
+                  System.out.print((i + 1) + ". ");
+                  for(int j = 0; j < result.get(i).size(); j++){
+                     System.out.print(result.get(i).get(j) + "\t");
+                  }
+                  System.out.println();
                }
 
                System.out.print("Enter number of item or (0) to exit: ");
@@ -625,7 +629,7 @@ public class Cafe {
                   final String query3 = "INSERT into ItemStatus (orderid, itemName, lastUpdated, status, comments) VALUES ('" + order_id + "', '" + orders.get(i) + "', '" + timestamp +"', 'Not Shipped', 'NONE')";
 
                   esql.executeUpdate(query3);
-                  System.out.println('\t' + "*" + orders.get(i));
+                  System.out.println('\t' + "* " + orders.get(i));
                }
                System.out.println("\nTotal: " + total + "\n");
                System.out.println("Order submitted, order id = " + order_id + ".");
@@ -647,20 +651,56 @@ public class Cafe {
   }
       
   public static void UpdateOrder(Cafe esql) throws IOException, SQLException{
-     System.out.print("Enter Order ID: ");
-     int user_choice = Integer.parseInt(in.readLine());
-     System.out.println("Items for Order #" + user_choice + ": ");
+      String query = String.format("SELECT * FROM Orders WHERE login = '%s' AND paid = false", esql.getAuthorisedUser());
+      List<List<String>> Oresult = esql.executeQueryAndReturnResult(query);
 
-     String query = "SELECT * FROM ItemStatus WHERE orderid = '" + user_choice + "'";
-     List< List<String> > results = esql.executeQueryAndReturnResult(query);
-     
-     for(int i = 0; i < results.size(); i++){
-        System.out.println((i+1) + ") " + results.get(i));
-     }
+      System.out.println("This are your orders: ");
+      for(int i = 0; i < Oresult.size(); i++){
+         System.out.println(String.format("%s\t%s\t%s\t%s\t%s",Oresult.get(i).get(0),
+                                                               Oresult.get(i).get(1),
+                                                               Oresult.get(i).get(2),
+                                                               Oresult.get(i).get(3),
+                                                               Oresult.get(i).get(4)));
+                                                            }
+      System.out.println("You have " + Oresult.size() + " order(s)");
+      if(Oresult.isEmpty()){ return; }
 
-     System.out.print("Enter item to remove: ");
+      System.out.print("Enter order number to change: ");
+      String oid;
+      do{
+         oid = in.readLine();
+      }while(oid.isEmpty());
 
 
+      while(true){
+         List<List<String>> Iresult = esql.executeQueryAndReturnResult(String.format("SELECT * FROM ItemStatus WHERE orderid = %s", oid));
+         if(Iresult.isEmpty()){
+            esql.executeUpdate(String.format("DELETE FROM Orders WHERE orderid = %s", oid));
+            System.out.println("No Order with id: " + oid);
+            break;
+         }
+         System.out.println("Here are the items in this order: ");
+      
+         for(int i = 0; i < Iresult.size(); i++){
+            System.out.print((i + 1) + ". ");
+            for(int j = 0; j < Iresult.get(i).size(); j++){
+               System.out.print(Iresult.get(i).get(j) + "\t");
+            }
+            System.out.println();
+         }
+
+         System.out.print("[Empty to return]\nEnter the item to delete: ");
+         String input = in.readLine();
+         if(input.isEmpty()){ break; }
+
+         int selection = Integer.parseInt(input);
+
+         String orderid = Iresult.get(selection - 1).get(0);
+         String itemname = Iresult.get(selection - 1).get(1);
+
+         esql.executeUpdate(String.format("DELETE FROM ItemStatus WHERE orderid = %s AND itemName = '%s'", orderid, itemname));
+         System.out.println("Deleted item: " + itemname);
+      }
   }
 
   public static void OrderHistory(Cafe esql) throws SQLException{
