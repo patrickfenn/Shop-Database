@@ -24,6 +24,10 @@ import java.io.InputStreamReader;
 import java.util.List;
 import java.util.ArrayList;
 import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.sql.Timestamp;  
+
 
 /**
  * This class defines a simple embedded SQL utility class that is designed to
@@ -116,17 +120,16 @@ public class Cafe {
 
       // iterates through the result set and output them to standard out.
       boolean outputHeader = true;
-
       while (rs.next()){
-		 if(outputHeader){
-			for(int i = 1; i <= numCol; i++){
-			System.out.print(rsmd.getColumnName(i) + "\t");
-			}
-			System.out.println();
-			outputHeader = false;
-		 }
+         if(outputHeader){
+            for(int i = 1; i <= numCol; i++){
+               System.out.print(rsmd.getColumnName(i) + "\t");
+            }
+            System.out.println();
+            outputHeader = false;
+         }
          for (int i=1; i<=numCol; ++i)
-            System.out.print (rs.getString (i));
+            System.out.print (rs.getString(i) + "\t");
          System.out.println ();
          ++rowCount;
       }//end while
@@ -535,18 +538,18 @@ public class Cafe {
       String user_entry = "";
       String query = "";
       List<String> orders = new ArrayList<String>();
-      List<List<String>> result;
+      List< List<String> > result;
       Double total = 0.0;
       String itemname = "";
       while(user_choice == 1 || user_choice == 2){
-         System.out.print("\n(1) to enter itemName \n(2) to enter item type \n(3) to check out: ");
+         System.out.print("\n(1) to enter itemName \n(2) to enter item type \n(3) to check out \n(4) to quit: ");
          user_choice = Integer.parseInt(in.readLine());
          switch(user_choice){
             case 1:
                System.out.print("\nEnter itemName: ");
                user_entry = in.readLine();
                System.out.println("\nResult: \n");
-               query = "SELECT * from Menu WHERE itemName = '" + user_entry + "'";
+               query = "SELECT * FROM Menu WHERE itemName = '" + user_entry + "'";
                try{
                   esql.executeQueryAndPrintResult(query);
                   System.out.println();
@@ -579,24 +582,56 @@ public class Cafe {
             break;
 
             case 2:
+               System.out.print("Enter type: ");
+               user_choice2 = in.readLine();
+               query = "SELECT * FROM Menu WHERE type = '" + user_choice2 + "'";
+               result = esql.executeQueryAndReturnResult(query);
+
+               for(int i = 0; i < result.size(); i++){
+                  System.out.print((i+1) + ") " + result.get(i)); 
+               }
+
+               System.out.print("Enter number of item or (0) to exit: ");
+               int user_choice3 = Integer.parseInt(in.readLine());
+               if(user_choice3 == 0){break;}
+               itemname = result.get(user_choice3-1).get(0);
+               orders.add(itemname);
+               total += Double.parseDouble(result.get(user_choice3-1).get(2));
+               System.out.println(itemname + " added. Total: " + total);
+               
+
 
             break;
 
             case 3:
-               int order_id = esql.executeQuery("SELECT * FROM ORDERS");
+               int order_id = esql.executeQuery("SELECT * FROM ORDERS") + 10;
                String user_login = esql.getAuthorisedUser();
+               Timestamp timestamp = new Timestamp(System.currentTimeMillis());
                
+               String query2 = "INSERT into ORDERS (orderid,login,paid,timeStampRecieved,total) VALUES ('" + order_id + "', '" + user_login + "', '" + 0 + "', '" + timestamp + "', " + total + ")";
+
+   
+               esql.executeUpdate(query2);
+
+               
+
                System.out.println("\n\nChecking out...\n");
-               System.out.println("---------------------");
+               System.out.println("------------------------------------------");
                System.out.println("Items in cart: ");
-               orders.forEach(order -> {
-                  System.out.println('\t' + "*" + order);
-               });
-               System.out.println("\nTotal: " + total + "\n");
-               System.out.println("---------------------\n");
-
-
                
+               for(int i = 0; i < orders.size(); i++){
+                  final String query3 = "INSERT into ItemStatus (orderid, itemName, lastUpdated, status, comments) VALUES ('" + order_id + "', '" + orders.get(i) + "', '" + timestamp +"', 'Not Shipped', 'NONE')";
+
+                  esql.executeUpdate(query3);
+                  System.out.println('\t' + "*" + orders.get(i));
+               }
+               System.out.println("\nTotal: " + total + "\n");
+               System.out.println("Order submitted, order id = " + order_id + ".");
+               System.out.println("------------------------------------------\n");
+
+
+
+            case 4:
 
 
             break;
@@ -609,7 +644,9 @@ public class Cafe {
 
   }
       
-  public static void UpdateOrder(Cafe esql){}
+  public static void UpdateOrder(Cafe esql){
+
+  }
 
 }//end Cafe
 
