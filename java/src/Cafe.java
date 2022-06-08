@@ -283,6 +283,7 @@ public class Cafe {
                 System.out.println("2. Update Profile");
                 System.out.println("3. Place a Order");
                 System.out.println("4. Update a Order");
+                System.out.println("5. Order History");
                 System.out.println(".........................");
                 System.out.println("9. Log out");
                 switch (readChoice()){
@@ -290,6 +291,7 @@ public class Cafe {
                    case 2: UpdateProfile(esql); break;
                    case 3: PlaceOrder(esql); break;
                    case 4: UpdateOrder(esql); break;
+                   case 5: OrderHistory(esql); break;
                    case 9: usermenu = false; break;
                    default : System.out.println("Unrecognized choice!"); break;
                 }
@@ -644,8 +646,29 @@ public class Cafe {
 
   }
       
-  public static void UpdateOrder(Cafe esql){
+  public static void UpdateOrder(Cafe esql) throws IOException, SQLException{
+     System.out.print("Enter Order ID: ");
+     int user_choice = Integer.parseInt(in.readLine());
+     System.out.println("Items for Order #" + user_choice + ": ");
 
+     String query = "SELECT * FROM ItemStatus WHERE orderid = '" + user_choice + "'";
+     List< List<String> > results = esql.executeQueryAndReturnResult(query);
+     
+     for(int i = 0; i < results.size(); i++){
+        System.out.println((i+1) + ") " + results.get(i));
+     }
+
+     System.out.print("Enter item to remove: ");
+
+
+  }
+
+  public static void OrderHistory(Cafe esql) throws SQLException{
+     String login = esql.getAuthorisedUser();
+     String query = "SELECT * FROM ORDERS WHERE login = '" + login + "' GROUP BY orderid, timeStampRecieved LIMIT 5";
+
+     System.out.println("\n\nOrder History: \n");
+     esql.executeQueryAndPrintResult(query);
   }
 
 }//end Cafe
