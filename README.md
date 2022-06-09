@@ -1,3 +1,3 @@
 # cs166-Shop-Database
-Website for tracking user orders.
+Java console app for tracking user orders. Uses JDBC for postresql as a DBMS.
 
